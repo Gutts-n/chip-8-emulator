@@ -127,7 +127,15 @@ fn process_instructions(memory: &mut Memory, display: &mut Display) {
                 // println!("Jumping to the value {}", value);
                 program_counter = value;
             }
-            DRAW => println!("DRAW CALLED"),
+            DRAW => {
+                let register_index_for_x = ((instruction & 0x0F00) >> 8) as usize;
+                let register_index_for_y = ((instruction & 0x00F0) >> 4) as usize;
+
+                let number_of_bytes_to_present = (instruction & 0x000F) as usize;
+                let x_position = registers[register_index_for_x];
+                let y_position = registers[register_index_for_y];
+                display.draw(position)
+            }
             default => {} // default => panic!("TODO not implemented yet {}", default),
         }
     }

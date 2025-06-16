@@ -4,16 +4,12 @@ pub struct Display {
 
 pub trait DisplayTrait {
     fn refresh(&mut self) -> bool;
-    fn draw(&mut self, position: usize) -> bool;
+    fn draw(&mut self, x: usize, y: usize, number_of_pixels_to_turn_on_or_off: u8) -> bool;
     fn clear(&mut self) -> bool;
 }
 
 impl DisplayTrait for Display {
     fn refresh(&mut self) -> bool {
-        false
-    }
-
-    fn draw(&mut self, position: usize) -> bool {
         false
     }
 
@@ -25,6 +21,20 @@ impl DisplayTrait for Display {
         }
 
         return true;
+    }
+
+    fn draw(&mut self, x: usize, y: usize, number_of_pixels_to_turn_on_or_off: u8) -> bool {
+        let x_pixels = self.pixels[x];
+
+        for row in self.pixels.iter() {
+
+            :
+            for &pixel in row.iter() {
+                let symbol = if pixel { '█' } else { '_' };
+                print!("{}", symbol);
+            }
+            println!();
+        }
     }
 }
 
