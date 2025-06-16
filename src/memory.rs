@@ -105,7 +105,7 @@ impl MemoryTrait for Memory {
 
     fn retrieve(&mut self, position: usize) -> u8 {
         if position >= MEMORY_SIZE {
-            println!("Position not supported on the memory");
+            println!("Position {} not supported on the memory", position);
             return 0x00;
         }
         self.memory[position]
@@ -147,4 +147,3 @@ impl Memory {
         }
     }
 }
-
