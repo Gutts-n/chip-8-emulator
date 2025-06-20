@@ -1,15 +1,18 @@
+use std::cell::RefCell;
 use std::fmt;
+use std::rc::Rc;
 
 pub const MEMORY_SIZE: usize = 4096;
 const FONT_START_ADDRESS: usize = 0x50;
 
+pub type SharedMemory = Rc<RefCell<Memory>>;
 pub struct Memory {
     memory: [u8; MEMORY_SIZE],
 }
 
 pub trait MemoryTrait {
     fn write(&mut self, position: usize, value: u8) -> bool;
-    fn retrieve(&mut self, position: usize) -> u8;
+    fn retrieve(&self, position: usize) -> u8;
 }
 
 impl fmt::Display for Memory {
@@ -103,7 +106,7 @@ impl MemoryTrait for Memory {
         return true;
     }
 
-    fn retrieve(&mut self, position: usize) -> u8 {
+    fn retrieve(&self, position: usize) -> u8 {
         if position >= MEMORY_SIZE {
             println!("Position {} not supported on the memory", position);
             return 0x00;

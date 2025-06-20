@@ -1,5 +1,8 @@
+use crate::memory::SharedMemory;
+
 pub struct Display {
     pixels: [[bool; 64]; 32],
+    memory: SharedMemory,
 }
 
 pub trait DisplayTrait {
@@ -24,24 +27,17 @@ impl DisplayTrait for Display {
     }
 
     fn draw(&mut self, x: usize, y: usize, number_of_pixels_to_turn_on_or_off: u8) -> bool {
-        let x_pixels = self.pixels[x];
-
-        for row in self.pixels.iter() {
-
-            :
-            for &pixel in row.iter() {
-                let symbol = if pixel { '█' } else { '_' };
-                print!("{}", symbol);
-            }
-            println!();
-        }
+        true
     }
 }
 
 impl Display {
-    pub fn new() -> Display {
+    pub fn new(memory: SharedMemory) -> Display {
         let pixels = [[false; 64]; 32];
-        let display = Display { pixels: pixels };
+        let display = Display {
+            pixels: pixels,
+            memory,
+        };
         display
     }
 
