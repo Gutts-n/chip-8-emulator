@@ -1,9 +1,9 @@
-struct Stack {
+pub struct Stack {
     addresses: [u16; 50],
     size: usize,
 }
 
-trait StackTrait {
+pub trait StackTrait {
     fn push(&mut self, address: u16) -> bool;
     fn pop(&mut self) -> u16;
     fn peek(&mut self) -> u16;
