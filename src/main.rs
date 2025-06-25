@@ -1,13 +1,17 @@
 mod display;
+mod keyboard;
 mod memory;
 mod stack;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use display::{Display, DisplayTrait};
+use keyboard::{Keyboard, KeyboardTrait};
 use memory::MemoryTrait;
 use memory::{MEMORY_SIZE, Memory, SharedMemory};
+use rand::Rng;
 use stack::{Stack, StackTrait};
 use std::cell::RefCell;
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::rc::Rc;
 
 const PROGRAM_START: usize = 0x200;
@@ -20,6 +24,8 @@ const CLEAR: u16 = 0x00E0; // Clear screen (exact match, no mask needed because 
 const POP_THE_TOP_OF_THE_STACK_AS_THE_CURRENT_PROGRAM_COUNTER: u16 = 0x00EE; // Clear screen (exact match, no mask needed because it doesn't send
 // args)
 const JUMP_TO_NNN: u16 = 0x1000; // 1NNN: Jump to address NNN 
+const JUMP_TO_NNN_PLUS_V0: u16 = 0xB000; // 1NNN: Jump to address NNN 
+const RANDOM_AND_AND_WITH_KK: u16 = 0xC000; // 1NNN: Jump to address NNN 
 const SET_PROGRAM_COUNTER_TO_THE_TOP_OF_THE_STACK_AND_GO_TO_NNN: u16 = 0x2000; // 1NNN: Jump to address NNN 
 const SET_NN_TO_VX: u16 = 0x6000; // 6XNN: Set VX to NN 
 const SUM_NN_TO_VX: u16 = 0x7000; // 7XNN: Add NN to VX 
@@ -30,9 +36,10 @@ const AND_TO_X_AND_Y: u16 = 0x8002; // 7XNN: Add NN to VX
 const ADD_VX_WITH_VY_AND_SET_TRUE_TO_VF_IF_ITS_MORE_THAN_8_BITS: u16 = 0x8004; // 7XNN: Add NN to VX 
 const SUBTRACT_VX_WITH_VY_AND_SET_TRUE_TO_VF_IF_ITS_MORE_THAN_8_BITS: u16 = 0x8005; // 7XNN: Add NN to VX 
 const SUBTRACT_VY_WITH_VX_AND_SET_TRUE_TO_VF_IF_ITS_MORE_THAN_8_BITS: u16 = 0x8007; // 7XNN: Add NN to VX 
-const SHIFT_X: u16 = 0x8006; // 7XNN: Add NN to VX 
+const SHIFT_RIGHT_X: u16 = 0x8006; // 7XNN: Add NN to VX 
+const SKIP_NEXT_INSTRUCTION_IF_X_KEY_WAS_PRESSED: u16 = 0xE09E; // 7XNN: Add NN to VX 
+const SHIFT_LEFT_X: u16 = 0x800E; // 7XNN: Add NN to VX 
 const SET_NNN_TO_I: u16 = 0xA000; // ANNN: Set I to NNN 
-const JUMP_NNN_TO_I: u16 = 0xA000; // ANNN: Set I to NNN 
 const DRAW: u16 = 0xD000; // DXYN: Draw sprite at (VX, VY) with height N 
 
 pub fn load_rom(file_path: &str, memory: SharedMemory) -> Result<Vec<u8>, String> {
@@ -63,12 +70,20 @@ pub fn load_rom(file_path: &str, memory: SharedMemory) -> Result<Vec<u8>, String
     Ok(rom_data)
 }
 
-fn process_instructions(memory: SharedMemory, display: &mut Display, stack: &mut Stack) {
+fn process_instructions(
+    memory: SharedMemory,
+    display: &mut Display,
+    stack: &mut Stack,
+    keyboard: &mut Keyboard,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut program_counter = PROGRAM_START;
     let mut registers = [0x00; 16];
     let mut i_register = 0x00;
     let mut f_register: u8 = 0x00;
     while true {
+        enable_raw_mode()?;
+        keyboard.process_any_input();
+        disable_raw_mode()?;
         // display.print();
         let first_byte = memory.borrow().retrieve(program_counter) as u16;
         let second_byte = memory.borrow().retrieve(program_counter + 1) as u16;
@@ -148,6 +163,12 @@ fn process_instructions(memory: SharedMemory, display: &mut Display, stack: &mut
                 registers[x_register_index] =
                     registers[x_register_index] | registers[y_register_index]
             }
+            SKIP_NEXT_INSTRUCTION_IF_X_KEY_WAS_PRESSED => {
+                let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
+                // TODO implement integration with the keyboard
+                // registers[x_register_index] == input;
+            }
+
             SKIP_NEXT_INSTRUCTION_IF_X_IS_EQUAL_TO_Y => {
                 let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
                 let y_register_index = ((instruction & 0x00F0) >> 4) as usize;
@@ -168,16 +189,30 @@ fn process_instructions(memory: SharedMemory, display: &mut Display, stack: &mut
 
                 registers[x_register_index] = (sum & 0xFF) as usize; // Store lower 8 bits
             }
-            SHIFT_X => {
+            SHIFT_RIGHT_X => {
                 let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
-
-                if registers[x_register_index] & 0x01 == 1 {
+                // 0x01 represents 0000 0001 so we are checking if the last bit is 1
+                // this mask only validate the last bit ignoring the rest transforming them in 0
+                if registers[x_register_index] & 0x01 == 0x01 {
                     f_register = 1;
                 } else {
                     f_register = 0;
                 }
 
-                registers[x_register_index] = registers[x_register_index] / 2;
+                registers[x_register_index] = registers[x_register_index] >> 1;
+            }
+            SHIFT_LEFT_X => {
+                let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
+
+                // 0x80 represents 1000 0000 so we are checking if the first bit is 1
+                // this mask only validate the first bit ignoring the rest transforming them in 0
+                if registers[x_register_index] & 0x80 == 0x80 {
+                    f_register = 1;
+                } else {
+                    f_register = 0;
+                }
+
+                registers[x_register_index] = registers[x_register_index] << 1;
             }
             SUBTRACT_VX_WITH_VY_AND_SET_TRUE_TO_VF_IF_ITS_MORE_THAN_8_BITS => {
                 let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
@@ -258,6 +293,30 @@ fn process_instructions(memory: SharedMemory, display: &mut Display, stack: &mut
                 );
                 registers[register_index as usize] = value as usize;
             }
+            RANDOM_AND_AND_WITH_KK => {
+                // Instruction: 0110 0010 0011 0111
+                // Mask 0x0FFF: 0000 1111 1111 1111
+                // _______________________________________________________________
+                // Result: 0000 0000 0011 0111 = 0x0037
+                let mut rng = rand::rng();
+                let kk_mask = (instruction & 0x00FF) as usize;
+                let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
+                let random_byte = rng.random_range(0..256);
+                println!(
+                    "random number provided: {} (must be between 0 to 256)",
+                    random_byte
+                );
+                registers[x_register_index] = random_byte & kk_mask;
+            }
+            JUMP_TO_NNN_PLUS_V0 => {
+                // Instruction: 0110 0010 0011 0111
+                // Mask 0x0FFF: 0000 1111 1111 1111
+                // _______________________________________________________________
+                // Result: 0000 0000 0011 0111 = 0x0037
+                let value = (instruction & 0x0FFF) as usize;
+                // println!("Jumping to the value {}", value);
+                program_counter = value + registers[0];
+            }
             JUMP_TO_NNN => {
                 // Instruction: 0110 0010 0011 0111
                 // Mask 0x0FFF: 0000 1111 1111 1111
@@ -284,15 +343,18 @@ fn process_instructions(memory: SharedMemory, display: &mut Display, stack: &mut
             default => {} // default => panic!("TODO not implemented yet {}", default),
         }
     }
+    Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stack = &mut Stack::new();
     let memory: SharedMemory = Rc::new(RefCell::new(Memory::new()));
     let display = &mut Display::new(Rc::clone(&memory));
     let result = load_rom("IBM Logo.ch8", Rc::clone(&memory));
+    let keyboard = &mut Keyboard::new();
     match result {
-        Ok(_) => process_instructions(memory, display, stack),
+        Ok(_) => process_instructions(memory, display, stack, keyboard),
         Err(e) => panic!("Failed to load the ROM: {}", e),
-    }
+    }?;
+    Ok(())
 }

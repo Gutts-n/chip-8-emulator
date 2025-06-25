@@ -1,4 +1,10 @@
 use crate::memory::{MemoryTrait, SharedMemory};
+use crossterm::{
+    ExecutableCommand,
+    cursor::{Hide, MoveTo, Show},
+    terminal::{Clear, ClearType},
+};
+use std::io::{Write, stdout};
 
 pub struct Display {
     pixels: [[bool; 64]; 32],
@@ -53,20 +59,18 @@ impl DisplayTrait for Display {
         }
 
         // Display the updated screen
-        self.print();
+        self.print_with_crossterm();
     }
 }
 
 impl Display {
     pub fn new(memory: SharedMemory) -> Display {
         let pixels = [[false; 64]; 32];
-        let display = Display {
-            pixels: pixels,
-            memory,
-        };
+        let display = Display { pixels, memory };
         display
     }
 
+    // print without lib
     pub fn print(&self) {
         println!("  ");
         println!("////");
@@ -78,5 +82,26 @@ impl Display {
             }
             println!();
         }
+    }
+
+    fn print_with_crossterm(&self) {
+        let mut stdout = stdout();
+
+        stdout.execute(Clear(ClearType::All)).unwrap();
+        stdout.execute(Hide).unwrap();
+
+        for (row_idx, row) in self.pixels.iter().enumerate() {
+            stdout.execute(MoveTo(0, row_idx as u16)).unwrap();
+
+            let row_string: String = row
+                .iter()
+                .map(|&pixel| if pixel { '█' } else { '·' })
+                .collect();
+
+            print!("{}", row_string);
+        }
+
+        stdout.execute(Show).unwrap();
+        stdout.flush().unwrap();
     }
 }
