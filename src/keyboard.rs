@@ -54,6 +54,7 @@ impl Display for CosmacVIPKey {
 
 pub trait KeyboardTrait {
     fn process_any_input(&mut self);
+    fn is_key_pressed(&mut self, byte: u8) -> bool;
     fn map_key_to_chip8(&self, key: KeyCode) -> Option<CosmacVIPKey>;
 }
 
@@ -84,9 +85,9 @@ impl KeyboardTrait for Keyboard {
                 }
 
                 if let Some(chip8_key) = self.map_key_to_chip8(code) {
-                    println!("");
-                    println!("found the key {}", chip8_key);
-                    self.keys.insert(chip8_key, true);
+                    for (key, value) in self.keys.iter_mut() {
+                        *value = key == &chip8_key
+                    }
                 }
             }
         }
@@ -114,6 +115,10 @@ impl KeyboardTrait for Keyboard {
             },
             _ => None,
         }
+    }
+
+    fn is_key_pressed(&mut self, byte: u8) -> bool {
+        true
     }
 }
 

@@ -77,10 +77,10 @@ fn process_instructions(
     keyboard: &mut Keyboard,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut program_counter = PROGRAM_START;
-    let mut registers = [0x00; 16];
+    let mut registers: [u8; 16] = [0x00; 16];
     let mut i_register = 0x00;
     let mut f_register: u8 = 0x00;
-    while true {
+    loop {
         enable_raw_mode()?;
         keyboard.process_any_input();
         disable_raw_mode()?;
@@ -121,7 +121,7 @@ fn process_instructions(
             }
             SKIP_NEXT_INSTRUCTION_IF_X_IS_EQUAL_TO_KK => {
                 let register_index = ((instruction & 0x0F00) >> 8) as usize;
-                let k_arg = (instruction & 0x00FF) as usize;
+                let k_arg = (instruction & 0x00FF) as u8;
                 if registers[register_index] == k_arg {
                     program_counter += 2;
                 }
@@ -140,7 +140,7 @@ fn process_instructions(
             }
             SKIP_NEXT_INSTRUCTION_IF_X_IS_DIFFERENT_OF_KK => {
                 let register_index = ((instruction & 0x0F00) >> 8) as usize;
-                let k_arg = (instruction & 0x00FF) as usize;
+                let k_arg = (instruction & 0x00FF) as u8;
                 if registers[register_index] != k_arg {
                     program_counter += 2;
                 }
@@ -165,8 +165,12 @@ fn process_instructions(
             }
             SKIP_NEXT_INSTRUCTION_IF_X_KEY_WAS_PRESSED => {
                 let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
-                // TODO implement integration with the keyboard
-                // registers[x_register_index] == input;
+                let pressed_key = &[registers[x_register_index]];
+                let string = std::str::from_utf8(pressed_key).unwrap();
+                let key = string.chars().next().unwrap();
+                if keyboard.is_key_pressed(key) {
+                    program_counter += 2;
+                }
             }
 
             SKIP_NEXT_INSTRUCTION_IF_X_IS_EQUAL_TO_Y => {
@@ -187,7 +191,7 @@ fn process_instructions(
                     f_register = 0;
                 }
 
-                registers[x_register_index] = (sum & 0xFF) as usize; // Store lower 8 bits
+                registers[x_register_index] = (sum & 0xFF) as u8; // Store lower 8 bits
             }
             SHIFT_RIGHT_X => {
                 let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
@@ -261,7 +265,7 @@ fn process_instructions(
                     "Summing the value {} to the register {} that has the value {}",
                     value, register_index, registers[register_index]
                 );
-                registers[register_index as usize] = registers[register_index] + value as usize;
+                registers[register_index as usize] = registers[register_index] + value as u8;
             }
             SET_NNN_TO_I => {
                 // Instruction: 0110 0010 0011 0111
@@ -291,7 +295,7 @@ fn process_instructions(
                     "Setting the value {} to the register {}",
                     value, register_index
                 );
-                registers[register_index as usize] = value as usize;
+                registers[register_index as usize] = value as u8;
             }
             RANDOM_AND_AND_WITH_KK => {
                 // Instruction: 0110 0010 0011 0111
@@ -299,7 +303,7 @@ fn process_instructions(
                 // _______________________________________________________________
                 // Result: 0000 0000 0011 0111 = 0x0037
                 let mut rng = rand::rng();
-                let kk_mask = (instruction & 0x00FF) as usize;
+                let kk_mask = (instruction & 0x00FF) as u8;
                 let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
                 let random_byte = rng.random_range(0..256);
                 println!(
@@ -315,7 +319,7 @@ fn process_instructions(
                 // Result: 0000 0000 0011 0111 = 0x0037
                 let value = (instruction & 0x0FFF) as usize;
                 // println!("Jumping to the value {}", value);
-                program_counter = value + registers[0];
+                program_counter = value + registers[0] as usize;
             }
             JUMP_TO_NNN => {
                 // Instruction: 0110 0010 0011 0111
