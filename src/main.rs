@@ -38,6 +38,9 @@ const SUBTRACT_VX_WITH_VY_AND_SET_TRUE_TO_VF_IF_ITS_MORE_THAN_8_BITS: u16 = 0x80
 const SUBTRACT_VY_WITH_VX_AND_SET_TRUE_TO_VF_IF_ITS_MORE_THAN_8_BITS: u16 = 0x8007; // 7XNN: Add NN to VX 
 const SHIFT_RIGHT_X: u16 = 0x8006; // 7XNN: Add NN to VX 
 const SKIP_NEXT_INSTRUCTION_IF_X_KEY_WAS_PRESSED: u16 = 0xE09E; // 7XNN: Add NN to VX 
+const SKIP_NEXT_INSTRUCTION_IF_X_KEY_WAS_NOT_PRESSED: u16 = 0xE0A1; // 7XNN: Add NN to VX 
+const SET_DELAY_TIMER_TO_VX: u16 = 0xF007; // 7XNN: Add NN to VX 
+const WAIT_TO_A_KEY_TO_BE_PRESSED_AND_STORE_IT_ON_THE_VX: u16 = 0xF00A; // 7XNN: Add NN to VX 
 const SHIFT_LEFT_X: u16 = 0x800E; // 7XNN: Add NN to VX 
 const SET_NNN_TO_I: u16 = 0xA000; // ANNN: Set I to NNN 
 const DRAW: u16 = 0xD000; // DXYN: Draw sprite at (VX, VY) with height N 
@@ -80,6 +83,7 @@ fn process_instructions(
     let mut registers: [u8; 16] = [0x00; 16];
     let mut i_register = 0x00;
     let mut f_register: u8 = 0x00;
+    let mut program_counter_sum_value = 2;
     loop {
         enable_raw_mode()?;
         keyboard.process_any_input();
@@ -88,7 +92,7 @@ fn process_instructions(
         let first_byte = memory.borrow().retrieve(program_counter) as u16;
         let second_byte = memory.borrow().retrieve(program_counter + 1) as u16;
         let instruction = (first_byte << 8) + second_byte;
-        program_counter = program_counter + 2;
+        program_counter = program_counter + program_counter_sum_value;
         if program_counter >= MEMORY_SIZE {
             break;
         }
@@ -165,20 +169,31 @@ fn process_instructions(
             }
             SKIP_NEXT_INSTRUCTION_IF_X_KEY_WAS_PRESSED => {
                 let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
-                let pressed_key = &[registers[x_register_index]];
-                let string = std::str::from_utf8(pressed_key).unwrap();
-                let key = string.chars().next().unwrap();
-                if keyboard.is_key_pressed(key) {
+                let pressed_key = registers[x_register_index];
+                if keyboard.is_key_pressed(pressed_key) {
                     program_counter += 2;
                 }
             }
-
+            SKIP_NEXT_INSTRUCTION_IF_X_KEY_WAS_NOT_PRESSED => {
+                let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
+                let pressed_key = registers[x_register_index];
+                if !keyboard.is_key_pressed(pressed_key) {
+                    program_counter += 2;
+                }
+            }
             SKIP_NEXT_INSTRUCTION_IF_X_IS_EQUAL_TO_Y => {
                 let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
                 let y_register_index = ((instruction & 0x00F0) >> 4) as usize;
                 if registers[x_register_index] == registers[y_register_index] {
                     program_counter += 2;
                 }
+            }
+            SET_DELAY_TIMER_TO_VX => {
+                // TODO implement this when we have the delay timer implemented
+            }
+            WAIT_TO_A_KEY_TO_BE_PRESSED_AND_STORE_IT_ON_THE_VX => {
+                let x_register_index = ((instruction & 0x0F00) >> 8) as usize;
+                registers[x_register_index] = keyboard.get_key_pressed();
             }
             ADD_VX_WITH_VY_AND_SET_TRUE_TO_VF_IF_ITS_MORE_THAN_8_BITS => {
                 let x_register_index = ((instruction & 0x0F00) >> 8) as usize;

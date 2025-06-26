@@ -1,6 +1,7 @@
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, poll, read};
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
+use std::io::{self, Read};
 use std::process::exit;
 use std::time::Duration;
 
@@ -22,6 +23,30 @@ pub enum CosmacVIPKey {
     Key0,
     KeyB,
     KeyF,
+}
+
+impl CosmacVIPKey {
+    pub fn from_u8(byte: u8) -> Option<Self> {
+        match byte {
+            b'1' => Some(Self::Key1),
+            b'2' => Some(Self::Key2),
+            b'3' => Some(Self::Key3),
+            b'c' | b'C' => Some(Self::KeyC),
+            b'4' => Some(Self::Key4),
+            b'5' => Some(Self::Key5),
+            b'6' => Some(Self::Key6),
+            b'd' | b'D' => Some(Self::KeyD),
+            b'7' => Some(Self::Key7),
+            b'8' => Some(Self::Key8),
+            b'9' => Some(Self::Key9),
+            b'e' | b'E' => Some(Self::KeyE),
+            b'a' | b'A' => Some(Self::KeyA),
+            b'0' => Some(Self::Key0),
+            b'b' | b'B' => Some(Self::KeyB),
+            b'f' | b'F' => Some(Self::KeyF),
+            _ => None,
+        }
+    }
 }
 
 pub struct Keyboard {
@@ -56,6 +81,7 @@ pub trait KeyboardTrait {
     fn process_any_input(&mut self);
     fn is_key_pressed(&mut self, byte: u8) -> bool;
     fn map_key_to_chip8(&self, key: KeyCode) -> Option<CosmacVIPKey>;
+    fn get_key_pressed(&self) -> u8;
 }
 
 impl KeyboardTrait for Keyboard {
@@ -92,6 +118,15 @@ impl KeyboardTrait for Keyboard {
             }
         }
     }
+
+    fn is_key_pressed(&mut self, byte: u8) -> bool {
+        if let Some(key) = CosmacVIPKey::from_u8(byte) {
+            return self.keys.get(&key).is_none();
+        } else {
+            return false;
+        }
+    }
+
     fn map_key_to_chip8(&self, key: KeyCode) -> Option<CosmacVIPKey> {
         match key {
             KeyCode::Char(c) => match c.to_ascii_lowercase() {
@@ -117,8 +152,13 @@ impl KeyboardTrait for Keyboard {
         }
     }
 
-    fn is_key_pressed(&mut self, byte: u8) -> bool {
-        true
+    fn get_key_pressed(&self) -> Option<CosmacVIPKey> {
+        for (key, value) in self.keys.iter_mut() {
+            match value {
+                true => return Some(key),
+                false => return None,
+            }
+        }
     }
 }
 
